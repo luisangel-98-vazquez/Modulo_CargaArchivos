@@ -4,112 +4,139 @@ import sys
 
 # Configuración de página
 st.set_page_config(
-    page_title="RAG DOCS",
+    page_title="Asistente IA",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
-# ── CSS INYECTADO: ELIMINACIÓN DE AZULES Y GRISES ──
+sys.path.append(os.path.dirname(__file__))
+from RAGEngine import RAGEngine, DOCS_PATH, OLLAMA_MODEL
+
+# ── CSS: FONDO TOTAL Y ESTILO DE BOTONES ──
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Inter:wght@400;500&display=swap');
-
-    /* Fondo base y tipografía */
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    .stApp { 
-        background-color: #050505; 
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+    
+    html, body, [data-testid="stAppViewContainer"], .stApp {
+        background-color: #0b111e !important;
         color: #FFFFFF;
+        font-family: 'Inter', sans-serif;
     }
 
-    /* FORZAR COLOR EN EL INPUT DE CHAT (Elimina el azul/gris por defecto) */
-    .stChatInput > div {
-        background: rgba(25, 25, 25, 0.4) !important;
-        backdrop-filter: blur(15px) !important;
-        -webkit-backdrop-filter: blur(15px) !important;
-        border: 1px solid rgba(229, 62, 62, 0.2) !important; /* Borde carmesí sutil */
-        border-radius: 15px !important;
-    }
-    
-    .stChatInput textarea {
-        color: #FFFFFF !important;
+    [data-testid="stMainViewContainer"] {
+        background-color: #0b111e !important;
     }
 
-    /* Botón de enviar: Rojo Carmesí */
-    .stChatInput button {
-        background-color: #E53E3E !important;
-        color: white !important;
+    [data-testid="stMainViewContainer"] > section > div {
+        padding-top: 2rem !important;
+        padding-bottom: 0rem !important;
     }
 
-    /* Sidebar Crystal */
-    section[data-testid="stSidebar"] {
-        background: rgba(15, 15, 15, 0.7) !important;
-        backdrop-filter: blur(10px);
-        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-    }
-
-    /* Botones del sistema */
-    .stButton > button {
-        background: rgba(40, 40, 40, 0.5) !important;
-        color: white !important;
-        border: 1px solid rgba(229, 62, 62, 0.3) !important;
-        border-radius: 10px !important;
-    }
-    .stButton > button:hover {
-        background: #E53E3E !important;
-        border-color: #E53E3E !important;
-    }
-
-    /* Header e Iconos */
-    .fitcoach-header {
-        display: flex; align-items: center; gap: 15px;
-        padding: 20px; background: rgba(20, 20, 20, 0.5);
-        border-radius: 15px; border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .fitcoach-logo {
-        background: linear-gradient(135deg, #E53E3E, #9B1C1C);
-        padding: 15px; border-radius: 12px;
-    }
-    
-    /* Fix para el menú de hamburguesa */
     header[data-testid="stHeader"] {
-        background: transparent !important;
-        color: #E53E3E !important;
+        background-color: rgba(0,0,0,0) !important;
+        color: #3b82f6 !important;
     }
     #MainMenu, footer { visibility: hidden; }
+
+    section[data-testid="stSidebar"] {
+        background-color: #0e1626 !important;
+        border-right: 1px solid #1e293b !important;
+    }
+
+    .main-card {
+        background: rgba(17, 25, 40, 0.75);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 40px;
+        text-align: center;
+        max-width: 700px;
+        margin: 20px auto;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .stChatInput > div {
+        background: #1e293b !important;
+        border: 1px solid #334155 !important;
+        border-radius: 12px !important;
+    }
+
+    .logo-box-blue {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        width: 45px; height: 45px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.3rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Lógica de persistencia
-if "messages" not in st.session_state: st.session_state.messages = []
-if "initialized" not in st.session_state: st.session_state.initialized = False
+# ── LÓGICA DE SESIÓN ──
+if "engine" not in st.session_state:
+    st.session_state.engine = RAGEngine()
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "initialized" not in st.session_state:
+    st.session_state.initialized = False
 
-# Sidebar
+# ── SIDEBAR CON BOTONES CARGAR Y LIMPIAR ──
 with st.sidebar:
-    st.markdown("<h2 style='color:#E53E3E;'>RAG DOCS</h2>", unsafe_allow_html=True)
-    st.text_input("Directorio de documentos", value="C:\\Users\\Bryan\\Documentos") # Basado en tu estructura
-    if st.button("CARGAR 📥", use_container_width=True):
-        st.session_state.initialized = True
-        st.success("Documentos cargados")
+    st.markdown("""
+    <div style='display:flex; align-items:center; gap:12px;'>
+        <div class="logo-box-blue">👤</div>
+        <h2 style='margin:0; font-size:1.2rem;'>Hola, <span style="color:#3b82f6;">Usuario</span> 👋</h2>
+    </div>
+    <br>
+    """, unsafe_allow_html=True)
+    
+    docs_path = st.text_input("Carpeta de documentos", value="C:\\Users\\luisa\\OneDrive\\Documentos")
+    modelo = st.text_input("Modelo Ollama", value=OLLAMA_MODEL)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📥 CARGAR", use_container_width=True):
+            st.session_state.engine.initialize(docs_path)
+            st.session_state.initialized = True
+            st.rerun()
+    
+    with col2:
+        if st.button("🗑️ LIMPIAR", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
 
-# Contenedor Principal
-st.markdown("""
-<div class="fitcoach-header">
-    <div class="fitcoach-logo">🤖</div>
+# ── CUERPO PRINCIPAL ──
+st.markdown(f"""
+<div style="display: flex; align-items: center; gap: 15px; margin-bottom: 5px;">
+    <div class="logo-box-blue">🤖</div>
     <div>
-        <h2 style="margin:0;">RAG<span style="color:#E53E3E;">DOCS</span></h2>
-        <small style="color:#888;">Interfaz Protegida | Estudiante de Software</small>
+        <h1 style="margin:0; font-size: 1.5rem; color: #3b82f6;">¿EN QUÉ TE PUEDO <span style="color:white;">AYUDAR HOY?</span></h1>
+        <p style="margin:0; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Módulo de Consulta</p>
     </div>
 </div>
+<hr style="border: 0.5px solid #1e293b; margin-bottom: 15px;">
 """, unsafe_allow_html=True)
 
-# Historial
-for msg in st.session_state.messages:
-    color = "rgba(229, 62, 62, 0.2)" if msg["role"] == "user" else "rgba(30, 30, 30, 0.6)"
-    st.markdown(f"<div style='background:{color}; padding:15px; border-radius:12px; margin-bottom:10px;'>{msg['content']}</div>", unsafe_allow_html=True)
+if not st.session_state.initialized:
+    st.markdown("""
+    <div class="main-card">
+        <div style="font-size: 3rem; margin-bottom: 10px;">📂</div>
+        <h2 style="margin:0; font-size:1.6rem;">CARGA TUS DOCUMENTOS</h2>
+        <p style="color:#64748b; margin-top:5px; font-size:0.9rem;">Configura la carpeta y presiona Cargar para comenzar.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Chat Input
-if prompt := st.chat_input("¿Qué deseas consultar de tus archivos?", disabled=not st.session_state.initialized):
+# Renderizado de historial
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+# ── INPUT DE CHAT ──
+prompt = st.chat_input("Pregunta sobre tus archivos...", disabled=not st.session_state.initialized)
+
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.session_state.messages.append({"role": "assistant", "content": "Analizando contexto..."})
-    st.rerun()
+    st.chat_message("user").write(prompt)
+    
+    response = st.session_state.engine.query(prompt)
+    
+    st.session_state.messages.append({"role": "assistant", "content": response["answer"]})
+    st.chat_message("assistant").write(response["answer"])
